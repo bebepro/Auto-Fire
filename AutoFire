@@ -1,0 +1,101 @@
+local player = game:GetService("Players").LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local UserInputService = game:GetService("UserInputService")
+
+local fireRate = 0.3 -- Set a fire rate to avoid excessive requests
+local isShooting = false
+local autoShootEnabled = false
+local isReloading = false
+
+local lastShotTime = 0
+
+-- Function to handle the shooting process
+local function autoShoot(tool)
+    while isShooting and tool and tool.Parent == character do
+        if tool:FindFirstChild("Ammo") and tool.Ammo.Value > 0 and (tick() - lastShotTime) >= fireRate then
+            lastShotTime = tick() -- Record the time of the last shot
+            tool:Activate() -- Trigger the shooting action
+        end
+        task.wait(fireRate) -- Throttle the shooting
+    end
+end
+
+-- Function to start shooting when a tool (gun) is equipped
+local function startShooting(tool)
+    if not isShooting then
+        isShooting = true
+        autoShoot(tool) -- Start the shooting loop
+    end
+end
+
+-- Function to stop shooting
+local function stopShooting()
+    isShooting = false
+end
+
+-- Function to handle reload detection and continuation of shooting
+local function handleReload(tool)
+    local ammo = tool:FindFirstChild("Ammo")
+    if not ammo then return end
+
+    -- Listen for ammo changes to handle reloading
+    ammo:GetPropertyChangedSignal("Value"):Connect(function()
+        if ammo.Value == 0 then
+            -- Trigger reload when ammo reaches 0
+            isReloading = true
+            stopShooting()
+
+            -- Simulate reload time (adjust timing to match actual reload speed)
+            task.wait(2) -- Simulate a reload wait (adjust based on actual reload time)
+            isReloading = false
+
+            -- Resume auto-shooting if ammo is available after reload
+            if autoShootEnabled and ammo.Value > 0 then
+                startShooting(tool)
+            end
+        end
+    end)
+end
+
+-- Function to handle when the player equips a tool
+local function onToolEquipped(tool)
+    if autoShootEnabled then
+        startShooting(tool)
+    end
+    handleReload(tool)
+end
+
+-- Detect when a tool is equipped by the player
+character.ChildAdded:Connect(function(child)
+    if child:IsA("Tool") then
+        onToolEquipped(child)
+    end
+end)
+
+-- Handle player respawning
+player.CharacterAdded:Connect(function(newCharacter)
+    character = newCharacter -- Update character reference after respawn
+    newCharacter.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") then
+            onToolEquipped(child)
+        end
+    end)
+end)
+
+-- Keybind to toggle auto-shoot on/off
+UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+    if gameProcessedEvent then return end
+
+    if input.KeyCode == Enum.KeyCode.K then
+        autoShootEnabled = not autoShootEnabled -- Toggle auto-shoot on or off
+        if not autoShootEnabled then
+            stopShooting() -- Stop shooting if toggled off
+        else
+            -- If a tool is already equipped, start auto-shooting
+            local equippedTool = character:FindFirstChildWhichIsA("Tool")
+            if equippedTool then
+                startShooting(equippedTool)
+            end
+        end
+    end
+end)
