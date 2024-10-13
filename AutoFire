@@ -8,11 +8,15 @@ local autoShootEnabled = false
 local isReloading = false
 
 local lastShotTime = 0
+local ammoListener = nil -- Cache the ammo listener to disconnect it later
 
 -- Function to handle the shooting process
 local function autoShoot(tool)
-    while isShooting and tool and tool.Parent == character do
-        if tool:FindFirstChild("Ammo") and tool.Ammo.Value > 0 and (tick() - lastShotTime) >= fireRate then
+    if not tool or not tool.Parent == character then return end
+
+    -- While shooting is enabled and ammo is available, shoot the tool
+    while isShooting and tool:FindFirstChild("Ammo") and tool.Ammo.Value > 0 do
+        if (tick() - lastShotTime) >= fireRate then
             lastShotTime = tick() -- Record the time of the last shot
             tool:Activate() -- Trigger the shooting action
         end
@@ -22,7 +26,7 @@ end
 
 -- Function to start shooting when a tool (gun) is equipped
 local function startShooting(tool)
-    if not isShooting then
+    if not isShooting and tool:FindFirstChild("Ammo") and tool.Ammo.Value > 0 then
         isShooting = true
         autoShoot(tool) -- Start the shooting loop
     end
@@ -33,23 +37,27 @@ local function stopShooting()
     isShooting = false
 end
 
--- Function to handle reload detection and continuation of shooting
+-- Function to handle reloading process and ammo management
 local function handleReload(tool)
     local ammo = tool:FindFirstChild("Ammo")
     if not ammo then return end
 
+    -- Disconnect any previous ammo listeners to avoid duplicate connections
+    if ammoListener then
+        ammoListener:Disconnect()
+    end
+
     -- Listen for ammo changes to handle reloading
-    ammo:GetPropertyChangedSignal("Value"):Connect(function()
-        if ammo.Value == 0 then
-            -- Trigger reload when ammo reaches 0
+    ammoListener = ammo:GetPropertyChangedSignal("Value"):Connect(function()
+        if ammo.Value == 0 and not isReloading then
             isReloading = true
-            stopShooting()
+            stopShooting() -- Stop shooting when ammo reaches 0
 
             -- Simulate reload time (adjust timing to match actual reload speed)
             task.wait(2) -- Simulate a reload wait (adjust based on actual reload time)
             isReloading = false
 
-            -- Resume auto-shooting if ammo is available after reload
+            -- Resume auto-shooting if auto-shoot is enabled and ammo is available after reload
             if autoShootEnabled and ammo.Value > 0 then
                 startShooting(tool)
             end
@@ -59,10 +67,10 @@ end
 
 -- Function to handle when the player equips a tool
 local function onToolEquipped(tool)
+    handleReload(tool)
     if autoShootEnabled then
         startShooting(tool)
     end
-    handleReload(tool)
 end
 
 -- Detect when a tool is equipped by the player
@@ -82,12 +90,18 @@ player.CharacterAdded:Connect(function(newCharacter)
     end)
 end)
 
+-- Debounce variable for toggling auto-shoot
+local toggleDebounce = false
+
 -- Keybind to toggle auto-shoot on/off
 UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
-    if gameProcessedEvent then return end
+    if gameProcessedEvent or toggleDebounce then return end
 
     if input.KeyCode == Enum.KeyCode.K then
-        autoShootEnabled = not autoShootEnabled -- Toggle auto-shoot on or off
+        toggleDebounce = true
+
+        -- Toggle auto-shoot on or off
+        autoShootEnabled = not autoShootEnabled
         if not autoShootEnabled then
             stopShooting() -- Stop shooting if toggled off
         else
@@ -97,5 +111,9 @@ UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
                 startShooting(equippedTool)
             end
         end
+
+        -- Debounce delay (optional)
+        task.wait(0.5) -- Add a small delay to prevent quick toggling
+        toggleDebounce = false
     end
 end)
