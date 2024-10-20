@@ -90,30 +90,22 @@ player.CharacterAdded:Connect(function(newCharacter)
     end)
 end)
 
--- Debounce variable for toggling auto-shoot
-local toggleDebounce = false
+-- Assuming you have a button named "ToggleButton" in your ScreenGui
+local screenGui = player:WaitForChild("PlayerGui"):WaitForChild("YourScreenGuiName") -- Change to your ScreenGui name
+local toggleButton = screenGui:WaitForChild("ToggleButton") -- Change to your button name
 
--- Keybind to toggle auto-shoot on/off
-UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
-    if gameProcessedEvent or toggleDebounce then return end
-
-    if input.KeyCode == Enum.KeyCode.K then
-        toggleDebounce = true
-
-        -- Toggle auto-shoot on or off
-        autoShootEnabled = not autoShootEnabled
-        if not autoShootEnabled then
-            stopShooting() -- Stop shooting if toggled off
-        else
-            -- If a tool is already equipped, start auto-shooting
-            local equippedTool = character:FindFirstChildWhichIsA("Tool")
-            if equippedTool then
-                startShooting(equippedTool)
-            end
+-- Function to handle button click to toggle auto-shoot
+toggleButton.MouseButton1Click:Connect(function()
+    autoShootEnabled = not autoShootEnabled
+    if not autoShootEnabled then
+        stopShooting() -- Stop shooting if toggled off
+        toggleButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0) -- Change color to red when off
+    else
+        -- If a tool is already equipped, start auto-shooting
+        local equippedTool = character:FindFirstChildWhichIsA("Tool")
+        if equippedTool then
+            startShooting(equippedTool)
         end
-
-        -- Debounce delay (optional)
-        task.wait(0.5) -- Add a small delay to prevent quick toggling
-        toggleDebounce = false
+        toggleButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Change color to green when on
     end
 end)
